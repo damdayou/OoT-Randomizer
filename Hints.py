@@ -485,7 +485,7 @@ def get_woth_hint(spoiler, world, checked):
     if not locations:
         return None
 
-    if world.include_last_woth and world.last_woth < 1:
+    if world.settings.include_last_woth and world.last_woth < 1:
         # Look for furthest location in coarse_spheres (order might be more accurate than in required_locations)
         better_locations = [loc for sphere in reversed(spoiler.coarse_spheres.values()) for loc in sphere]
         better_locations = [loc for loc in better_locations if loc.name in set(loc2.name for loc2 in locations)]
@@ -507,6 +507,7 @@ def get_woth_hint(spoiler, world, checked):
     location_text = hint_area.text(world.settings.clearer_hints)
 
     return (GossipText(hint_text % location_text, [hint_color], [location.name], [location.item.name]), [location])
+
 
 def get_checked_areas(world, checked):
     def get_area_from_name(check):
