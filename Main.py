@@ -711,20 +711,16 @@ def compute_coarse_spheres(spoiler):
     for (name, record) in distribution.starting_items.items():
         item = Item(name, world=worlds[0])
         search.state_list[0].collect(item)
-
-    item = worlds[0].get_location("Links Pocket").item
-    search.state_list[0].collect(item)
-    collection_spheres[-1][item.location] = item.name
+    
+    for location in search.iter_pseudo_starting_locations():
+        item = location.item
+        search.state_list[0].collect(item)
+        collection_spheres[-1][item.location] = item.name
 
     if spoiler.settings.skip_child_zelda:
         location = worlds[0].get_location("HC Zeldas Letter")
         item = location.item
         search.state_list[0].collect(item)
-        collection_spheres[-1][item.location] = item.name
-        location = worlds[0].get_location("Song from Impa")
-        item = location.item
-        search.state_list[0].collect(item)
-        collection_spheres[-1][item.location] = item.name
     
     # Compute next spheres
     had_reachable_locations = True
