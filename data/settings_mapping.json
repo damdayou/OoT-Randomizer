@@ -364,6 +364,7 @@
             "clearer_hints",
             "hints",
             "hint_dist",
+            "include_last_woth",
             "bingosync_url",
             "misc_hints",
             "text_shuffle",
