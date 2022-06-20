@@ -867,6 +867,9 @@ def create_playthrough(spoiler):
     entrance_spheres = []
     remaining_entrances = set(entrance for world in worlds for entrance in world.get_shuffled_entrances())
 
+    search.checkpoint()
+    search.collect_pseudo_starting_items()
+    
     while True:
         search.checkpoint()
         # Not collecting while the generator runs means we only get one sphere at a time
@@ -937,6 +940,7 @@ def create_playthrough(spoiler):
     # Regenerate the spheres as we might not reach places the same way anymore.
     search.reset() # search state has no items, okay to reuse sphere 0 cache
     collection_spheres = []
+    collection_spheres.append(list(search.iter_pseudo_starting_locations()))
     entrance_spheres = []
     remaining_entrances = set(required_entrances)
     collected = set()
@@ -965,7 +969,7 @@ def create_playthrough(spoiler):
     logger.info('Collected %d final spheres', len(collection_spheres))
 
     # Then we can finally output our playthrough
-    spoiler.playthrough = OrderedDict((str(i + 1), {location: location.item for location in sphere}) for i, sphere in enumerate(collection_spheres))
+    spoiler.playthrough = OrderedDict((str(i), {location: location.item for location in sphere}) for i, sphere in enumerate(collection_spheres))
     # Copy our light arrows, since we set them in the world copy
     for w, sw in zip(worlds, spoiler.worlds):
         if w.light_arrow_location:

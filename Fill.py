@@ -3,7 +3,7 @@ import logging
 from State import State
 from Rules import set_shop_rules
 from Location import DisableType
-from ItemPool import IGNORE_LOCATION, remove_junk_items
+from ItemPool import remove_junk_items
 from Item import ItemFactory, ItemInfo
 from Search import Search
 
@@ -142,6 +142,36 @@ def distribute_items_restrictive(window, worlds, fill_locations=None):
         fill_dungeons_restrictive(window, worlds, search, fill_locations, dungeon_items, itempool + songitempool)
         search.collect_locations()
 
+
+    # If some dungeons are supposed to be empty, fill them with useless items.
+    if worlds[0].settings.empty_dungeons_mode != 'none':
+        empty_locations = [location for world in worlds \
+            for dungeon in world.dungeons if world.empty_dungeons[dungeon.name].empty \
+            for region in dungeon.regions \
+            for location in region.locations if location in fill_locations]
+        for location in empty_locations:
+            fill_locations.remove(location)
+            location.world.hint_exclusions.add(location.name)
+            location.world.hint_type_overrides['sometimes'].append(location.name)
+            location.world.hint_type_overrides['random'].append(location.name)
+        
+        if worlds[0].settings.shuffle_mapcompass in ['any_dungeon', 'overworld', 'keysanity']:
+            # Non-empty dungeon items are present in restitempool but yet we 
+            # don't want to place them in an empty dungeon
+            restdungeon, restother = [], []
+            for item in restitempool:
+                if item.dungeonitem:
+                    restdungeon.append(item)
+                else:
+                    restother.append(item)
+            fast_fill(window, empty_locations, restother)
+            restitempool = restdungeon + restother
+            random.shuffle(restitempool)
+        else:
+            # We don't have to worry about this if dungeon items stay in their own dungeons
+            fast_fill(window, empty_locations, restitempool)
+
+
     # places the songs into the world
     # Currently places songs only at song locations. if there's an option
     # to allow at other locations then they should be in the main pool.
@@ -241,8 +271,12 @@ def fill_dungeon_unique_item(window, worlds, search, fill_locations, itempool):
     # since the rest are already placed.
     major_items = [item for item in itempool if item.majoritem]
     minor_items = [item for item in itempool if not item.majoritem]
+  
+    if worlds[0].settings.empty_dungeons_mode != 'none':
+        dungeons = [dungeon for world in worlds for dungeon in world.dungeons if not world.empty_dungeons[dungeon.name].empty]
+    else:
+        dungeons = [dungeon for world in worlds for dungeon in world.dungeons]
 
-    dungeons = [dungeon for world in worlds for dungeon in world.dungeons]
     double_dungeons = []
     for dungeon in dungeons:
         # we will count spirit temple twice so that it gets 2 items to match vanilla
@@ -506,9 +540,6 @@ def fast_fill(window, locations, itempool):
     while itempool and locations:
         spot_to_fill = locations.pop()
         item_to_place = itempool.pop()
-        # Ice traps are currently unsupported as starting items, but forbidding them on Song from Impa would noticeably increase the chance of a major item there in Ice Trap Onslaught.
-        if spot_to_fill.world.settings.skip_child_zelda and spot_to_fill.name == 'Song from Impa' and item_to_place.name == 'Ice Trap':
-            item_to_place = ItemFactory(IGNORE_LOCATION, spot_to_fill.world)
         spot_to_fill.world.push_item(spot_to_fill, item_to_place)
         window.fillcount += 1
         window.update_progress(5 + ((window.fillcount / window.locationcount) * 30))
