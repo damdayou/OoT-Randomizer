@@ -48,6 +48,7 @@ class World:
         self.empty_areas: dict[HintArea, dict[str, Any]] = {}
         self.barren_dungeon: int = 0
         self.woth_dungeon: int = 0
+        self.last_woth: bool = True # TODO : put to false and read from settings
         self.randomized_list: list[str] = []
 
         self.parser: Rule_AST_Transformer = Rule_AST_Transformer(self)

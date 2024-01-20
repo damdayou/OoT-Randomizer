@@ -531,6 +531,80 @@ class HintArea(Enum):
         return text
 
 
+def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[Location]) -> Location:
+    '''
+    Compute its own "spheres", by triggering a new sphere opening only when Major Items of type 'Item' or 'Song' have been found.
+    This allows a simpler sphere tracking for players by ignoring minor items, keys, heart pieces and containers, tokens, events...
+    Then return a random WotH location in the furthest of these spheres containing at least one WotH.
+    '''
+    worlds = spoiler.worlds
+    worlds = spoiler.copy_worlds()
+    spheres: list[list[Location]] = [[]]
+
+    all_locations: list[Location] = [location for world in worlds for location in world.get_filled_locations()]
+    search: Search = Search([world.state for world in worlds])
+
+    # Generate sphere 0
+    for item_name in world.distribution.starting_items.keys():
+        item = Item(item_name, world=world)
+        search.collect(item)
+    for location in search.iter_pseudo_starting_locations():
+        if location.item and location.item.solver_id is not None:
+            spheres[-1].append(location)
+            search.collect(location.item)
+
+    # Generate next spheres
+    spheres.append([])
+    items_to_delay: list[Item] = []
+    items_to_collect: list[Item] = []
+    while True:
+        # Check new reachable locations
+        for location in search.iter_reachable_locations(all_locations):
+            item: Item = location.item
+            if item and item.solver_id is not None:
+                if item.majoritem and item.type in ('Item', 'Song'):
+                    items_to_delay.append(item)
+                else:
+                    items_to_collect.append(location.item)
+
+        # Collect items
+        if len(items_to_collect) > 0:
+            for item in items_to_collect:
+                search.collect(item)
+                # Log interesting items
+                if item.name == "Triforce" or item.type == "DungeonReward":
+                    spheres[-1].append(item.location)
+            items_to_collect = []
+        elif len(items_to_delay) > 0:
+            for item in items_to_delay:
+                search.collect(item)
+                spheres[-1].append(item.location)
+            items_to_delay = []
+            spheres.append([])
+        else:
+            break
+    
+    # Save spheres
+    while len(spheres[-1]) == 0:
+        spheres.pop()
+    for i, sphere in enumerate(spheres):
+        if len(sphere) == 0 or any(location.item.name == "Triforce" for location in sphere):
+            break
+        spoiler.last_woth_spheres[f"{i}"] = sphere
+
+    
+    # Pick last woth item
+    def is_woth_location(location):
+        # Locations from the copied world must be compared by name and world id with the locations
+        # from the initial world (since they will never be equal as objects)
+        return any((location.name, location.world.id) == (other.name, other.world.id) for other in woth_locations)
+
+    for sphere in reversed(spheres):
+        candidates: list[Location] = [location for location in filter(is_woth_location, sphere)]
+        if len(candidates) > 0:
+            return random.choice(candidates)
+
+
 def get_woth_hint(spoiler: Spoiler, world: World, checked: set[str]) -> HintReturn:
     locations = spoiler.required_locations[world.id]
     locations = list(filter(lambda location:
@@ -544,8 +618,17 @@ def get_woth_hint(spoiler: Spoiler, world: World, checked: set[str]) -> HintRetu
 
     if not locations:
         return None
+    
+    if world.last_woth:
+        location = get_last_woth_location(spoiler, world, locations)
+        world.last_woth = False
+        hint_text = '%s is at the end of the way of the hero.'
+        hint_color = 'Blue'
+    else:
+        location = random.choice(locations)
+        hint_text = '%s is on the way of the hero.'
+        hint_color = 'Light Blue'
 
-    location = random.choice(locations)
     checked.add(location.name)
 
     hint_area = HintArea.at(location)
@@ -553,7 +636,7 @@ def get_woth_hint(spoiler: Spoiler, world: World, checked: set[str]) -> HintRetu
         world.woth_dungeon += 1
     location_text = hint_area.text(world.settings.clearer_hints)
 
-    return GossipText('%s is on the way of the hero.' % location_text, ['Light Blue'], [location.name], [location.item.name]), [location]
+    return GossipText(hint_text % location_text, [hint_color], [location.name], [location.item.name]), [location]
 
 
 def get_checked_areas(world: World, checked: set[str]) -> set[HintArea | str]:

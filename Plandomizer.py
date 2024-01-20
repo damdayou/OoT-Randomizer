@@ -1147,6 +1147,7 @@ class Distribution:
         self.file_hash: Optional[list[str]] = None
         self.playthrough: Optional[dict[str, dict[str, LocationRecord]]] = None
         self.entrance_playthrough: Optional[dict[str, dict[str, EntranceRecord]]] = None
+        self.last_woth_spheres: Optional[dict[str, dict[str, LocationRecord]]] = None
 
         self.src_dict: dict[str, Any] = src_dict or {}
         self.settings: Settings = settings
@@ -1331,6 +1332,14 @@ class Distribution:
                     })
                     for (sphere_nr, sphere) in self.entrance_playthrough.items()
                 }, depth=2)
+            
+            if self.last_woth_spheres is not None and len(self.last_woth_spheres) > 0:
+                self_dict[':last_woth_spheres'] = AlignedDict({
+                    sphere_nr: SortedDict({
+                        name: record.to_json() for name, record in sphere.items()
+                    })
+                    for (sphere_nr, sphere) in self.last_woth_spheres.items()
+                }, depth=2)
 
         if not include_output:
             strip_output_only(self_dict)
@@ -1416,6 +1425,18 @@ class Distribution:
                         entrance_key = entrance.name
 
                     ent_rec_sphere[entrance_key] = EntranceRecord.from_entrance(entrance)
+        
+        self.last_woth_spheres = {}
+        for (sphere_nr, sphere) in spoiler.last_woth_spheres.items():
+            loc_rec_sphere = {}
+            self.last_woth_spheres[sphere_nr] = loc_rec_sphere
+            for location in sphere:
+                if spoiler.settings.world_count > 1:
+                    location_key = '%s [W%d]' % (location.name, location.world.id + 1)
+                else:
+                    location_key = location.name
+
+                loc_rec_sphere[location_key] = LocationRecord.from_item(location.item)
 
     @staticmethod
     def from_file(settings: Settings, filename: str) -> Distribution:
