@@ -544,15 +544,19 @@ def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[
     all_locations: list[Location] = [location for world in worlds for location in world.get_filled_locations()]
     search: Search = Search([world.state for world in worlds])
 
+    # Items triggering a sphere change
     trigger_items = {
         name
         for name, (item_type, is_progressive, _, _) in item_table.items()
         if is_progressive and item_type in ('Item', 'Song')
     }
-    trigger_items -= {'Heart Container', 'Piece of Heart', 'Piece of Heart (Treasure Chest Game)'}
+    trigger_items -= {'Heart Container', 'Piece of Heart', 'Piece of Heart (Treasure Chest Game)', 'Sell Big Poe'}
     if not world.settings.free_bombchu_drops:
         trigger_items -= {f'Bombchus ({n})' for n in (5, 10, 20)}
+    if 'logic_grottos_without_agony' in world.settings.allowed_tricks:
+        trigger_items.discard("Stone of Agony")
 
+    # Unshuffled locations that won't trigger a sphere change
     unshuffled_locations = {"Deliver Rutos Letter"}
     if world.skip_child_zelda:
         unshuffled_locations |= {"HC Malon Egg", "HC Zeldas Letter"}
@@ -561,7 +565,7 @@ def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[
     if not world.settings.shuffle_ocarinas:
         unshuffled_locations |= {"LW Gift from Saria", "HF Ocarina of Time Item"}
     if not world.settings.shuffle_expensive_merchants:
-        unshuffled_locations.add("Wasteland Bombchu Salesman")
+        unshuffled_locations |= {"Wasteland Bombchu Salesman", "Kak Granny Buy Blue Potion", "GC Medigoron"}
     if not world.settings.shuffle_gerudo_card:
         unshuffled_locations.add("Hideout Gerudo Membership Card")
     if not world.settings.shuffle_beans:
