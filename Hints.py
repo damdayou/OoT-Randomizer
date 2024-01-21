@@ -15,6 +15,7 @@ from urllib.error import URLError, HTTPError
 from HintList import Hint, get_hint, get_multi, get_hint_group, get_upgrade_hint_list, hint_exclusions, \
     misc_item_hint_table, misc_location_hint_table
 from Item import Item, make_event_item
+from ItemList import item_table
 from Messages import Message, COLOR_MAP, update_message_by_id
 from Region import Region
 from Search import Search
@@ -533,8 +534,7 @@ class HintArea(Enum):
 
 def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[Location]) -> Location:
     '''
-    Compute its own "spheres", by triggering a new sphere opening only when Major Items of type 'Item' or 'Song' have been found.
-    This allows a simpler sphere tracking for players by ignoring minor items, keys, heart pieces and containers, tokens, events...
+    Compute its own "spheres", by triggering a new sphere opening only for a specific set of items.
     Then return a random WotH location in the furthest of these spheres containing at least one WotH.
     '''
     worlds = spoiler.worlds
@@ -543,6 +543,43 @@ def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[
 
     all_locations: list[Location] = [location for world in worlds for location in world.get_filled_locations()]
     search: Search = Search([world.state for world in worlds])
+
+    trigger_items = {
+        name
+        for name, (item_type, is_progressive, _, _) in item_table.items()
+        if is_progressive and item_type in ('Item', 'Song')
+    }
+    trigger_items -= {'Heart Container', 'Piece of Heart', 'Piece of Heart (Treasure Chest Game)'}
+    if not world.settings.free_bombchu_drops:
+        trigger_items -= {f'Bombchus ({n})' for n in (5, 10, 20)}
+
+    unshuffled_locations = {"Deliver Rutos Letter"}
+    if world.skip_child_zelda:
+        unshuffled_locations |= {"HC Malon Egg", "HC Zeldas Letter"}
+    if not world.settings.shuffle_kokiri_sword:
+        unshuffled_locations.add("KF Kokiri Sword Chest")
+    if not world.settings.shuffle_ocarinas:
+        unshuffled_locations |= {"LW Gift from Saria", "HF Ocarina of Time Item"}
+    if not world.settings.shuffle_expensive_merchants:
+        unshuffled_locations.add("Wasteland Bombchu Salesman")
+    if not world.settings.shuffle_gerudo_card:
+        unshuffled_locations.add("Hideout Gerudo Membership Card")
+    if not world.settings.shuffle_beans:
+        unshuffled_locations.add("ZR Magic Bean Salesman")
+    if not world.settings.adult_trade_shuffle:
+        unshuffled_locations |= {
+            "LW Trade Cojiro",
+            "Kak Granny Trade Odd Mushroom",
+            "LW Trade Odd Potion",
+            "GV Trade Poachers Saw",
+            "DMT Trade Broken Sword",
+            "DMT Trade Eyedrops",
+            "ZD Trade Prescription",
+            "LH Trade Eyeball Frog"
+        }
+    if not world.settings.shuffle_child_trade:
+        unshuffled_locations |= {f"Market Mask Shop Item {i}" for i in range(1, 9)}
+    
 
     # Generate sphere 0
     for item_name in world.distribution.starting_items.keys():
@@ -562,7 +599,7 @@ def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[
         for location in search.iter_reachable_locations(all_locations):
             item: Item = location.item
             if item and item.solver_id is not None:
-                if item.majoritem and item.type in ('Item', 'Song'):
+                if item.name in trigger_items and location.name not in unshuffled_locations:
                     items_to_delay.append(item)
                 else:
                     items_to_collect.append(location.item)
@@ -588,9 +625,7 @@ def get_last_woth_location(spoiler: Spoiler, world: World, woth_locations: list[
     while len(spheres[-1]) == 0:
         spheres.pop()
     for i, sphere in enumerate(spheres):
-        if len(sphere) == 0 or any(location.item.name == "Triforce" for location in sphere):
-            break
-        spoiler.last_woth_spheres[f"{i}"] = sphere
+        spoiler.last_woth_spheres[f"{i-1 if i > 0 else 'start'}"] = sphere
 
     
     # Pick last woth item
